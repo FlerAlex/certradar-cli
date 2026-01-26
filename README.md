@@ -17,7 +17,7 @@ A command-line tool for certificate transparency search and SSL/TLS security ana
 ### From Source
 
 ```bash
-git clone https://github.com/certradar/certradar-cli.git
+git clone https://github.com/FlerAlex/certradar-cli.git
 cd certradar-cli
 cargo build --release
 ```
