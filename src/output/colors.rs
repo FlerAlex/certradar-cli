@@ -25,9 +25,9 @@ pub fn format_bool(value: bool) -> String {
 /// Format a boolean as check/cross symbol
 pub fn format_check(value: bool) -> String {
     if value {
-        "✓".green().to_string()
+        "[OK]".green().to_string()
     } else {
-        "✗".red().to_string()
+        "[X]".red().to_string()
     }
 }
 
