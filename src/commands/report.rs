@@ -4,7 +4,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::output::{format_check, format_grade, section_header};
+use crate::output::{format_check, format_grade, format_multi_domain_promo, section_header};
 use crate::services::{DnsService, HeadersService, RdapService, SslAnalyzerService};
 
 pub async fn run_report(
@@ -176,6 +176,9 @@ pub async fn run_report(
             println!();
         }
     }
+
+    // Promotional message for multi-domain users
+    print!("{}", format_multi_domain_promo(domains.len()));
 
     Ok(())
 }

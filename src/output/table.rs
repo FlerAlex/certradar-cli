@@ -2,6 +2,7 @@ use comfy_table::{presets::UTF8_FULL, Cell, CellAlignment, Color, Table};
 
 use crate::models::*;
 use crate::output::colors::*;
+use crate::output::promo::format_ssl_promo;
 use colored::Colorize;
 
 /// Format SSL analysis result as a table
@@ -261,6 +262,9 @@ pub fn format_ssl_analysis(result: &SslAnalysisResult) -> String {
             ));
         }
     }
+
+    // Promotional message (contextual, not spammy)
+    output.push_str(&format_ssl_promo(result));
 
     output
 }

@@ -2,6 +2,10 @@
 
 A command-line tool for certificate transparency search and SSL/TLS security analysis.
 
+## Why CertRadar CLI?
+
+Built by the team behind [CertRadar.net](https://certradar.net) and [SSLGuard.net](https://sslguard.net) - used in production to monitor thousands of certificates.
+
 ## Features
 
 - **Certificate Transparency Search** - Find certificates issued for any domain via crt.sh
@@ -168,6 +172,13 @@ certradar-cli ssl example.com -o json > report.json
 
 - OpenSSL development libraries (for SSL analysis)
 - Internet connection
+
+## Need Continuous Monitoring?
+
+This CLI is great for ad-hoc checks. For automated monitoring with alerts:
+
+- **[SSLGuard.net](https://sslguard.net)** - Certificate expiry monitoring & alerts
+- **[CertRadar.net](https://certradar.net)** - Full SSL/TLS security dashboard
 
 ## License
 
