@@ -31,29 +31,6 @@ pub fn format_check(value: bool) -> String {
     }
 }
 
-/// Format a severity with appropriate color
-pub fn format_severity(severity: &str) -> String {
-    match severity {
-        "critical" => severity.bright_red().bold().to_string(),
-        "warning" => severity.yellow().to_string(),
-        "info" => severity.blue().to_string(),
-        "good" => severity.green().to_string(),
-        "bad" => severity.red().to_string(),
-        _ => severity.to_string(),
-    }
-}
-
-/// Format a status with appropriate color
-pub fn format_status(status: &str) -> String {
-    match status {
-        "good" => "Good".green().to_string(),
-        "warning" => "Warning".yellow().to_string(),
-        "bad" => "Bad".red().to_string(),
-        "info" => "Info".blue().to_string(),
-        _ => status.to_string(),
-    }
-}
-
 /// Format days remaining with appropriate color
 pub fn format_days_remaining(days: i64) -> String {
     if days < 0 {

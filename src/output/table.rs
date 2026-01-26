@@ -100,19 +100,46 @@ pub fn format_ssl_analysis(result: &SslAnalysisResult) -> String {
     // Security features
     output.push_str(&section_header("Security Features"));
     if let Some(hsts) = &result.hsts {
+        let preload_badge = if let Some(preload_status) = &hsts.preload_status {
+            if preload_status.is_preloaded {
+                " [PRELOADED]".bright_green().to_string()
+            } else if hsts.preload {
+                " [PENDING]".yellow().to_string()
+            } else {
+                "".to_string()
+            }
+        } else {
+            "".to_string()
+        };
         output.push_str(&format!(
-            "  HSTS:           {} (max-age: {})\n",
+            "  HSTS:           {} (max-age: {}){}\n",
             format_check(hsts.enabled),
-            hsts.max_age
+            hsts.max_age,
+            preload_badge
         ));
     } else {
         output.push_str(&format!("  HSTS:           {}\n", format_check(false)));
     }
 
     if let Some(ocsp) = &result.ocsp_stapling {
+        let status_info = if ocsp.enabled {
+            if let Some(cert_status) = &ocsp.cert_status {
+                let status_str = match cert_status.as_str() {
+                    "good" => cert_status.green().to_string(),
+                    "revoked" => cert_status.bright_red().to_string(),
+                    _ => cert_status.yellow().to_string(),
+                };
+                format!(" (status: {})", status_str)
+            } else {
+                "".to_string()
+            }
+        } else {
+            "".to_string()
+        };
         output.push_str(&format!(
-            "  OCSP Stapling:  {}\n",
-            format_check(ocsp.enabled)
+            "  OCSP Stapling:  {}{}\n",
+            format_check(ocsp.enabled),
+            status_info
         ));
     } else {
         output.push_str(&format!("  OCSP Stapling:  {}\n", "Unknown".dimmed()));
@@ -136,7 +163,85 @@ pub fn format_ssl_analysis(result: &SslAnalysisResult) -> String {
             format_check(!caa.any_ca_allowed)
         ));
     }
+
+    // Cipher preference
+    if let Some(cipher_pref) = &result.cipher_preference {
+        let pref_status = if cipher_pref.server_enforces_preference {
+            format_check(true)
+        } else {
+            format_check(false)
+        };
+        output.push_str(&format!(
+            "  Cipher Pref:    {}\n",
+            pref_status
+        ));
+        if let Some(preferred) = &cipher_pref.preferred_cipher {
+            output.push_str(&format!(
+                "  Preferred:      {}\n",
+                preferred.dimmed()
+            ));
+        }
+    }
     output.push('\n');
+
+    // Certificate Chain
+    if let Some(chain) = &result.certificate.chain {
+        if chain.length > 1 {
+            output.push_str(&section_header("Certificate Chain"));
+
+            let mut table = Table::new();
+            table.load_preset(UTF8_FULL);
+            table.set_header(vec![
+                Cell::new("#"),
+                Cell::new("Type"),
+                Cell::new("Subject"),
+                Cell::new("Issuer"),
+                Cell::new("Expires"),
+                Cell::new("Days"),
+            ]);
+
+            for cert in &chain.certificates {
+                let type_cell = match cert.cert_type.as_str() {
+                    "leaf" => Cell::new("Leaf").fg(Color::Green),
+                    "intermediate" => Cell::new("Intermediate").fg(Color::Yellow),
+                    "root" => Cell::new("Root").fg(Color::Blue),
+                    _ => Cell::new(&cert.cert_type),
+                };
+
+                let subject = if cert.subject.len() > 25 {
+                    format!("{}...", &cert.subject[..22])
+                } else {
+                    cert.subject.clone()
+                };
+
+                let issuer = if cert.issuer.len() > 25 {
+                    format!("{}...", &cert.issuer[..22])
+                } else {
+                    cert.issuer.clone()
+                };
+
+                let days_cell = if cert.days_remaining < 0 {
+                    Cell::new("EXPIRED").fg(Color::Red)
+                } else if cert.days_remaining <= 30 {
+                    Cell::new(cert.days_remaining.to_string()).fg(Color::Yellow)
+                } else {
+                    Cell::new(cert.days_remaining.to_string()).fg(Color::Green)
+                };
+
+                table.add_row(vec![
+                    Cell::new(cert.position.to_string()),
+                    type_cell,
+                    Cell::new(subject),
+                    Cell::new(issuer),
+                    Cell::new(&cert.valid_until),
+                    days_cell,
+                ]);
+            }
+
+            output.push_str(&table.to_string());
+            output.push_str("\n\n");
+        }
+    }
 
     // Issues
     if !result.issues.is_empty() {

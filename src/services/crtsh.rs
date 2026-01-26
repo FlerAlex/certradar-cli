@@ -1,14 +1,9 @@
 use anyhow::{Context, Result};
-use once_cell::sync::Lazy;
-use regex::Regex;
 use reqwest::Client;
 use serde::Deserialize;
 use std::time::Duration;
 
-use crate::models::{Certificate, CertificateDetail};
-
-static CN_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"CN=([^,]+)").unwrap());
-static O_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"O=([^,]+)").unwrap());
+use crate::models::Certificate;
 
 pub struct CrtshClient {
     client: Client,
@@ -93,65 +88,6 @@ impl CrtshClient {
             .collect())
     }
 
-    pub async fn get_certificate_detail(&self, id: i64) -> Result<Option<CertificateDetail>> {
-        let url = format!("https://crt.sh/?id={}&output=json", id);
-
-        let response = self
-            .client
-            .get(&url)
-            .timeout(self.timeout)
-            .send()
-            .await
-            .context("Failed to fetch certificate")?;
-
-        if !response.status().is_success() {
-            return Ok(None);
-        }
-
-        let text = response.text().await.context("Failed to read response")?;
-
-        if text.trim() == "null" || text.trim().is_empty() {
-            return Ok(None);
-        }
-
-        // crt.sh returns an array even for single cert
-        let certs: Vec<CrtshCert> =
-            serde_json::from_str(&text).context("Failed to parse certificate")?;
-
-        let cert = match certs.into_iter().next() {
-            Some(c) => c,
-            None => return Ok(None),
-        };
-
-        // Parse SANs from name_value (newline-separated)
-        let subject_alt_names: Vec<String> = cert
-            .name_value
-            .lines()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-
-        // Extract CN and O from issuer_name
-        let issuer_cn = extract_cn(&cert.issuer_name);
-        let issuer_o = extract_o(&cert.issuer_name);
-
-        Ok(Some(CertificateDetail {
-            crtsh_id: cert.id,
-            common_name: cert.common_name,
-            name_value: cert.name_value,
-            issuer_name: cert.issuer_name,
-            not_before: cert.not_before,
-            not_after: cert.not_after,
-            serial_number: cert.serial_number,
-            signature_algo: None,
-            key_type: None,
-            key_size: None,
-            subject_alt_names,
-            issuer_cn,
-            issuer_o,
-        }))
-    }
-
     pub fn filter_certificates(
         &self,
         certs: Vec<Certificate>,
@@ -204,16 +140,102 @@ impl CrtshClient {
     }
 }
 
-fn extract_cn(issuer_name: &str) -> Option<String> {
-    CN_REGEX
-        .captures(issuer_name)
-        .and_then(|caps| caps.get(1))
-        .map(|m| m.as_str().trim().to_string())
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn extract_o(issuer_name: &str) -> Option<String> {
-    O_REGEX
-        .captures(issuer_name)
-        .and_then(|caps| caps.get(1))
-        .map(|m| m.as_str().trim().to_string())
+    fn make_cert(common_name: &str, name_value: &str) -> Certificate {
+        Certificate {
+            crtsh_id: 1,
+            common_name: common_name.to_string(),
+            name_value: name_value.to_string(),
+            issuer_name: "Test Issuer".to_string(),
+            not_before: "2024-01-01".to_string(),
+            not_after: "2025-01-01".to_string(),
+            serial_number: "123456".to_string(),
+        }
+    }
+
+    fn make_client() -> CrtshClient {
+        CrtshClient::new(Duration::from_secs(30))
+    }
+
+    #[test]
+    fn test_matches_domain_exact() {
+        let client = make_client();
+        let cert = make_cert("example.com", "example.com");
+
+        assert!(client.matches_domain(&cert, "example.com", false));
+        assert!(client.matches_domain(&cert, "example.com", true));
+        assert!(!client.matches_domain(&cert, "other.com", false));
+    }
+
+    #[test]
+    fn test_matches_domain_wildcard() {
+        let client = make_client();
+        let cert = make_cert("*.example.com", "*.example.com");
+
+        assert!(!client.matches_domain(&cert, "example.com", false));
+        assert!(client.matches_domain(&cert, "example.com", true));
+    }
+
+    #[test]
+    fn test_matches_domain_subdomain() {
+        let client = make_client();
+        let cert = make_cert("sub.example.com", "sub.example.com");
+
+        assert!(!client.matches_domain(&cert, "example.com", false));
+        assert!(client.matches_domain(&cert, "example.com", true));
+    }
+
+    #[test]
+    fn test_matches_domain_name_value() {
+        let client = make_client();
+        let cert = make_cert("other.com", "example.com\ntest.example.com");
+
+        // Exact match in name_value lines (without subdomains)
+        assert!(client.matches_domain(&cert, "example.com", false));
+
+        // Contains match in name_value (with subdomains)
+        assert!(client.matches_domain(&cert, "example.com", true));
+    }
+
+    #[test]
+    fn test_matches_domain_case_insensitive() {
+        let client = make_client();
+        let cert = make_cert("EXAMPLE.COM", "EXAMPLE.COM");
+
+        // matches_domain expects domain to be lowercase (filter_certificates handles this)
+        assert!(client.matches_domain(&cert, "example.com", false));
+    }
+
+    #[test]
+    fn test_filter_certificates_case_insensitive() {
+        let client = make_client();
+        let certs = vec![make_cert("EXAMPLE.COM", "EXAMPLE.COM")];
+
+        // filter_certificates should handle case insensitivity
+        let filtered = client.filter_certificates(certs.clone(), "example.com", false);
+        assert_eq!(filtered.len(), 1);
+
+        let filtered_upper = client.filter_certificates(certs, "EXAMPLE.COM", false);
+        assert_eq!(filtered_upper.len(), 1);
+    }
+
+    #[test]
+    fn test_filter_certificates() {
+        let client = make_client();
+        let certs = vec![
+            make_cert("example.com", "example.com"),
+            make_cert("sub.example.com", "sub.example.com"),
+            make_cert("other.com", "other.com"),
+        ];
+
+        let filtered = client.filter_certificates(certs.clone(), "example.com", false);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].common_name, "example.com");
+
+        let filtered_with_subs = client.filter_certificates(certs, "example.com", true);
+        assert_eq!(filtered_with_subs.len(), 2);
+    }
 }

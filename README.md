@@ -5,7 +5,14 @@ A command-line tool for certificate transparency search and SSL/TLS security ana
 ## Features
 
 - **Certificate Transparency Search** - Find certificates issued for any domain via crt.sh
-- **SSL/TLS Analysis** - Analyze SSL/TLS configuration with security grading
+- **SSL/TLS Analysis** - Comprehensive SSL/TLS configuration analysis with security grading:
+  - Protocol support detection (TLS 1.0 - 1.3)
+  - Cipher suite enumeration and weakness detection
+  - Certificate chain analysis with detailed info for each certificate
+  - OCSP stapling status with response parsing
+  - HSTS header analysis with preload list verification
+  - Server cipher preference detection
+  - CAA record analysis
 - **Security Headers Check** - Evaluate HTTP security headers (HSTS, CSP, etc.)
 - **DNS Lookup** - Query DNS records (A, AAAA, MX, TXT, NS, CAA)
 - **RDAP/WHOIS Lookup** - Get domain registration information
@@ -82,6 +89,16 @@ certradar-cli ssl example.com --port 8443
 # JSON output for scripting
 certradar-cli ssl example.com -o json | jq .securityGrade
 ```
+
+The SSL analysis includes:
+- **Certificate details** - Subject, issuer, validity, key type/size, SANs
+- **Certificate chain** - Full chain analysis with each certificate's details
+- **Protocol support** - TLS 1.0, 1.1, 1.2, 1.3 detection
+- **Cipher suites** - Enumeration with weakness detection
+- **OCSP stapling** - Status and certificate revocation status
+- **HSTS** - Header parsing with preload list verification (via hstspreload.org)
+- **Cipher preference** - Server cipher preference enforcement detection
+- **Security grade** - A+ to F grade based on configuration
 
 ### Security Headers
 

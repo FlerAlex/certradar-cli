@@ -24,37 +24,6 @@ pub struct Certificate {
     pub serial_number: String,
 }
 
-/// Detailed certificate info
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CertificateDetail {
-    #[serde(rename = "crtsh_id")]
-    pub crtsh_id: i64,
-    #[serde(rename = "common_name")]
-    pub common_name: String,
-    #[serde(rename = "name_value")]
-    pub name_value: String,
-    #[serde(rename = "issuer_name")]
-    pub issuer_name: String,
-    #[serde(rename = "not_before")]
-    pub not_before: String,
-    #[serde(rename = "not_after")]
-    pub not_after: String,
-    #[serde(rename = "serial_number")]
-    pub serial_number: String,
-    #[serde(rename = "signature_algo", skip_serializing_if = "Option::is_none")]
-    pub signature_algo: Option<String>,
-    #[serde(rename = "key_type", skip_serializing_if = "Option::is_none")]
-    pub key_type: Option<String>,
-    #[serde(rename = "key_size", skip_serializing_if = "Option::is_none")]
-    pub key_size: Option<i32>,
-    #[serde(rename = "subject_alt_names")]
-    pub subject_alt_names: Vec<String>,
-    #[serde(rename = "issuer_cn", skip_serializing_if = "Option::is_none")]
-    pub issuer_cn: Option<String>,
-    #[serde(rename = "issuer_o", skip_serializing_if = "Option::is_none")]
-    pub issuer_o: Option<String>,
-}
-
 /// Search result response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
@@ -89,6 +58,8 @@ pub struct SslAnalysisResult {
     pub weak_ciphers: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub caa: Option<CaaAnalysis>,
+    #[serde(rename = "cipherPreference", skip_serializing_if = "Option::is_none")]
+    pub cipher_preference: Option<CipherPreferenceInfo>,
     #[serde(rename = "analyzedAt")]
     pub analyzed_at: DateTime<Utc>,
 }
@@ -131,6 +102,45 @@ pub struct SslCertificateInfo {
     pub chain_length: usize,
     #[serde(rename = "chainValid")]
     pub chain_valid: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain: Option<CertificateChainInfo>,
+}
+
+/// Information about each certificate in the chain
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChainCertificateInfo {
+    pub position: u8,
+    #[serde(rename = "certType")]
+    pub cert_type: String,
+    pub subject: String,
+    pub issuer: String,
+    #[serde(rename = "validFrom")]
+    pub valid_from: String,
+    #[serde(rename = "validUntil")]
+    pub valid_until: String,
+    #[serde(rename = "daysRemaining")]
+    pub days_remaining: i64,
+    #[serde(rename = "serialNumber")]
+    pub serial_number: String,
+    #[serde(rename = "signatureAlgorithm")]
+    pub signature_algorithm: String,
+    #[serde(rename = "keyType")]
+    pub key_type: String,
+    #[serde(rename = "keySize")]
+    pub key_size: i32,
+    #[serde(rename = "isSelfSigned")]
+    pub is_self_signed: bool,
+}
+
+/// Certificate chain analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CertificateChainInfo {
+    pub length: usize,
+    pub valid: bool,
+    #[serde(rename = "chainComplete")]
+    pub chain_complete: bool,
+    pub certificates: Vec<ChainCertificateInfo>,
+    pub issues: Vec<String>,
 }
 
 /// Cipher suite information
@@ -146,6 +156,19 @@ pub struct CipherSuiteInfo {
     pub is_weak: bool,
     #[serde(rename = "hasForwardSecrecy")]
     pub has_forward_secrecy: bool,
+    #[serde(rename = "serverPreferenceRank", skip_serializing_if = "Option::is_none")]
+    pub server_preference_rank: Option<u8>,
+}
+
+/// Server cipher preference information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CipherPreferenceInfo {
+    #[serde(rename = "serverEnforcesPreference")]
+    pub server_enforces_preference: bool,
+    #[serde(rename = "preferredCipher", skip_serializing_if = "Option::is_none")]
+    pub preferred_cipher: Option<String>,
+    #[serde(rename = "preferenceOrder", skip_serializing_if = "Option::is_none")]
+    pub preference_order: Option<Vec<String>>,
 }
 
 /// Security issue detected during analysis
@@ -166,6 +189,18 @@ pub struct HstsInfo {
     #[serde(rename = "includeSubdomains")]
     pub include_subdomains: bool,
     pub preload: bool,
+    #[serde(rename = "preloadStatus", skip_serializing_if = "Option::is_none")]
+    pub preload_status: Option<HstsPreloadStatus>,
+}
+
+/// HSTS preload list verification status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HstsPreloadStatus {
+    #[serde(rename = "isPreloaded")]
+    pub is_preloaded: bool,
+    pub status: String,
+    #[serde(rename = "preloadedDomain", skip_serializing_if = "Option::is_none")]
+    pub preloaded_domain: Option<String>,
 }
 
 /// OCSP stapling information
@@ -174,6 +209,18 @@ pub struct OcspStaplingInfo {
     pub enabled: bool,
     #[serde(rename = "responseStatus", skip_serializing_if = "Option::is_none")]
     pub response_status: Option<String>,
+    #[serde(rename = "certStatus", skip_serializing_if = "Option::is_none")]
+    pub cert_status: Option<String>,
+    #[serde(rename = "thisUpdate", skip_serializing_if = "Option::is_none")]
+    pub this_update: Option<String>,
+    #[serde(rename = "nextUpdate", skip_serializing_if = "Option::is_none")]
+    pub next_update: Option<String>,
+    #[serde(rename = "revocationTime", skip_serializing_if = "Option::is_none")]
+    pub revocation_time: Option<String>,
+    #[serde(rename = "revocationReason", skip_serializing_if = "Option::is_none")]
+    pub revocation_reason: Option<String>,
+    #[serde(rename = "producedAt", skip_serializing_if = "Option::is_none")]
+    pub produced_at: Option<String>,
 }
 
 /// Forward secrecy analysis

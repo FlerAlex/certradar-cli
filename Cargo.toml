@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.75"
 description = "Certificate transparency and SSL/TLS security analysis CLI tool"
 license = "MIT"
-repository = "https://github.com/certradar/certradar-cli"
+repository = "https://github.com/FlerAlex/certradar-cli"
 
 [dependencies]
 # CLI
