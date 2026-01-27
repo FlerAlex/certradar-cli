@@ -43,6 +43,14 @@ brew tap fleralex/tap
 brew install certradar-cli
 ```
 
+### Arch Linux (AUR)
+
+```bash
+paru -S certradar-cli
+```
+
+Or with yay: `yay -S certradar-cli`
+
 ### From Source
 
 ```bash
