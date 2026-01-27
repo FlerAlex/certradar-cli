@@ -30,19 +30,17 @@ Built by the team behind [CertRadar.net](https://certradar.net) and [SSLGuard.ne
 
 ## Installation
 
+### From Crates.io (Recommended)
+
+```bash
+cargo install certradar-cli
+```
+
 ### From Source
 
 ```bash
 git clone https://github.com/FlerAlex/certradar-cli.git
 cd certradar-cli
-cargo build --release
-```
-
-The binary will be at `target/release/certradar-cli`.
-
-### Install to PATH
-
-```bash
 cargo install --path .
 ```
 
