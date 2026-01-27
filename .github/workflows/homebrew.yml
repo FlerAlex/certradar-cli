@@ -1,0 +1,88 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for release assets
+        run: sleep 30
+
+      - name: Get release info
+        id: release
+        run: |
+          echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Download and hash release assets
+        id: hashes
+        run: |
+          VERSION=${{ steps.release.outputs.version }}
+          BASE_URL="https://github.com/FlerAlex/certradar-cli/releases/download/v${VERSION}"
+
+          curl -sL "${BASE_URL}/certradar-cli-macos-arm64.tar.gz" -o macos-arm64.tar.gz
+          curl -sL "${BASE_URL}/certradar-cli-macos-x86_64.tar.gz" -o macos-x86_64.tar.gz
+          curl -sL "${BASE_URL}/certradar-cli-linux-x86_64.tar.gz" -o linux-x86_64.tar.gz
+
+          echo "macos_arm64=$(sha256sum macos-arm64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "macos_x86_64=$(sha256sum macos-x86_64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "linux_x86_64=$(sha256sum linux-x86_64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: FlerAlex/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          VERSION=${{ steps.release.outputs.version }}
+
+          cat > homebrew-tap/Formula/certradar-cli.rb << 'EOF'
+          class CertradarCli < Formula
+            desc "Certificate transparency search and SSL/TLS security analysis CLI"
+            homepage "https://github.com/FlerAlex/certradar-cli"
+            version "VERSION_PLACEHOLDER"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/FlerAlex/certradar-cli/releases/download/vVERSION_PLACEHOLDER/certradar-cli-macos-arm64.tar.gz"
+                sha256 "SHA_MACOS_ARM64"
+              else
+                url "https://github.com/FlerAlex/certradar-cli/releases/download/vVERSION_PLACEHOLDER/certradar-cli-macos-x86_64.tar.gz"
+                sha256 "SHA_MACOS_X86_64"
+              end
+            end
+
+            on_linux do
+              url "https://github.com/FlerAlex/certradar-cli/releases/download/vVERSION_PLACEHOLDER/certradar-cli-linux-x86_64.tar.gz"
+              sha256 "SHA_LINUX_X86_64"
+            end
+
+            def install
+              bin.install "certradar-cli"
+            end
+
+            test do
+              system "#{bin}/certradar-cli", "--version"
+            end
+          end
+          EOF
+
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" homebrew-tap/Formula/certradar-cli.rb
+          sed -i "s/SHA_MACOS_ARM64/${{ steps.hashes.outputs.macos_arm64 }}/g" homebrew-tap/Formula/certradar-cli.rb
+          sed -i "s/SHA_MACOS_X86_64/${{ steps.hashes.outputs.macos_x86_64 }}/g" homebrew-tap/Formula/certradar-cli.rb
+          sed -i "s/SHA_LINUX_X86_64/${{ steps.hashes.outputs.linux_x86_64 }}/g" homebrew-tap/Formula/certradar-cli.rb
+
+      - name: Commit and push
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/certradar-cli.rb
+          git commit -m "Update certradar-cli to v${{ steps.release.outputs.version }}"
+          git push
