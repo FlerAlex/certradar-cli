@@ -21,7 +21,7 @@ jobs:
             name: linux-x86_64
             artifact: certradar-cli
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-13
             name: macos-x86_64
             artifact: certradar-cli
           - target: aarch64-apple-darwin
@@ -47,6 +47,12 @@ jobs:
       - name: Install OpenSSL (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config
+
+      - name: Install OpenSSL (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew install openssl@3
+          echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
 
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
