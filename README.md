@@ -1,5 +1,10 @@
 # CertRadar CLI
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
+[![Crates.io](https://img.shields.io/crates/v/certradar-cli.svg)](https://crates.io/crates/certradar-cli)
+[![Downloads](https://img.shields.io/crates/d/certradar-cli.svg)](https://crates.io/crates/certradar-cli)
+
 A command-line tool for certificate transparency search and SSL/TLS security analysis.
 
 ## Why CertRadar CLI?
