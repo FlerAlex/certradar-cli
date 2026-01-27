@@ -23,11 +23,9 @@ jobs:
           BASE_URL="https://github.com/FlerAlex/certradar-cli/releases/download/v${VERSION}"
 
           curl -sL "${BASE_URL}/certradar-cli-macos-arm64.tar.gz" -o macos-arm64.tar.gz
-          curl -sL "${BASE_URL}/certradar-cli-macos-x86_64.tar.gz" -o macos-x86_64.tar.gz
           curl -sL "${BASE_URL}/certradar-cli-linux-x86_64.tar.gz" -o linux-x86_64.tar.gz
 
           echo "macos_arm64=$(sha256sum macos-arm64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
-          echo "macos_x86_64=$(sha256sum macos-x86_64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
           echo "linux_x86_64=$(sha256sum linux-x86_64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
       - name: Checkout homebrew-tap
@@ -49,12 +47,9 @@ jobs:
             license "MIT"
 
             on_macos do
-              if Hardware::CPU.arm?
+              on_arm do
                 url "https://github.com/FlerAlex/certradar-cli/releases/download/vVERSION_PLACEHOLDER/certradar-cli-macos-arm64.tar.gz"
                 sha256 "SHA_MACOS_ARM64"
-              else
-                url "https://github.com/FlerAlex/certradar-cli/releases/download/vVERSION_PLACEHOLDER/certradar-cli-macos-x86_64.tar.gz"
-                sha256 "SHA_MACOS_X86_64"
               end
             end
 
@@ -75,7 +70,6 @@ jobs:
 
           sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" homebrew-tap/Formula/certradar-cli.rb
           sed -i "s/SHA_MACOS_ARM64/${{ steps.hashes.outputs.macos_arm64 }}/g" homebrew-tap/Formula/certradar-cli.rb
-          sed -i "s/SHA_MACOS_X86_64/${{ steps.hashes.outputs.macos_x86_64 }}/g" homebrew-tap/Formula/certradar-cli.rb
           sed -i "s/SHA_LINUX_X86_64/${{ steps.hashes.outputs.linux_x86_64 }}/g" homebrew-tap/Formula/certradar-cli.rb
 
       - name: Commit and push
