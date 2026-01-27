@@ -9,12 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Wait for release assets
-        run: sleep 30
+        run: sleep 60
 
-      - name: Get release info
+      - name: Get release version
         id: release
         run: |
-          echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Release version: ${VERSION}"
 
       - name: Download and hash release assets
         id: hashes
@@ -22,11 +24,20 @@ jobs:
           VERSION=${{ steps.release.outputs.version }}
           BASE_URL="https://github.com/FlerAlex/certradar-cli/releases/download/v${VERSION}"
 
-          curl -sL "${BASE_URL}/certradar-cli-macos-arm64.tar.gz" -o macos-arm64.tar.gz
-          curl -sL "${BASE_URL}/certradar-cli-linux-x86_64.tar.gz" -o linux-x86_64.tar.gz
+          echo "Downloading macOS ARM64..."
+          curl -fSL "${BASE_URL}/certradar-cli-macos-arm64.tar.gz" -o macos-arm64.tar.gz
 
-          echo "macos_arm64=$(sha256sum macos-arm64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
-          echo "linux_x86_64=$(sha256sum linux-x86_64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "Downloading Linux x86_64..."
+          curl -fSL "${BASE_URL}/certradar-cli-linux-x86_64.tar.gz" -o linux-x86_64.tar.gz
+
+          MACOS_SHA=$(sha256sum macos-arm64.tar.gz | cut -d' ' -f1)
+          LINUX_SHA=$(sha256sum linux-x86_64.tar.gz | cut -d' ' -f1)
+
+          echo "macOS ARM64 SHA256: ${MACOS_SHA}"
+          echo "Linux x86_64 SHA256: ${LINUX_SHA}"
+
+          echo "macos_arm64=${MACOS_SHA}" >> $GITHUB_OUTPUT
+          echo "linux_x86_64=${LINUX_SHA}" >> $GITHUB_OUTPUT
 
       - name: Checkout homebrew-tap
         uses: actions/checkout@v4
@@ -36,26 +47,28 @@ jobs:
           path: homebrew-tap
 
       - name: Update formula
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          MACOS_SHA: ${{ steps.hashes.outputs.macos_arm64 }}
+          LINUX_SHA: ${{ steps.hashes.outputs.linux_x86_64 }}
         run: |
-          VERSION=${{ steps.release.outputs.version }}
-
-          cat > homebrew-tap/Formula/certradar-cli.rb << 'EOF'
+          cat > homebrew-tap/Formula/certradar-cli.rb << EOF
           class CertradarCli < Formula
             desc "Certificate transparency search and SSL/TLS security analysis CLI"
             homepage "https://github.com/FlerAlex/certradar-cli"
-            version "VERSION_PLACEHOLDER"
+            version "${VERSION}"
             license "MIT"
 
             on_macos do
               on_arm do
-                url "https://github.com/FlerAlex/certradar-cli/releases/download/vVERSION_PLACEHOLDER/certradar-cli-macos-arm64.tar.gz"
-                sha256 "SHA_MACOS_ARM64"
+                url "https://github.com/FlerAlex/certradar-cli/releases/download/v${VERSION}/certradar-cli-macos-arm64.tar.gz"
+                sha256 "${MACOS_SHA}"
               end
             end
 
             on_linux do
-              url "https://github.com/FlerAlex/certradar-cli/releases/download/vVERSION_PLACEHOLDER/certradar-cli-linux-x86_64.tar.gz"
-              sha256 "SHA_LINUX_X86_64"
+              url "https://github.com/FlerAlex/certradar-cli/releases/download/v${VERSION}/certradar-cli-linux-x86_64.tar.gz"
+              sha256 "${LINUX_SHA}"
             end
 
             def install
@@ -63,14 +76,16 @@ jobs:
             end
 
             test do
-              system "#{bin}/certradar-cli", "--version"
+              system "\#{bin}/certradar-cli", "--version"
             end
           end
           EOF
 
-          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" homebrew-tap/Formula/certradar-cli.rb
-          sed -i "s/SHA_MACOS_ARM64/${{ steps.hashes.outputs.macos_arm64 }}/g" homebrew-tap/Formula/certradar-cli.rb
-          sed -i "s/SHA_LINUX_X86_64/${{ steps.hashes.outputs.linux_x86_64 }}/g" homebrew-tap/Formula/certradar-cli.rb
+          # Remove leading spaces from heredoc
+          sed -i 's/^          //' homebrew-tap/Formula/certradar-cli.rb
+
+          echo "Generated formula:"
+          cat homebrew-tap/Formula/certradar-cli.rb
 
       - name: Commit and push
         run: |
@@ -78,5 +93,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/certradar-cli.rb
+          git diff --cached
           git commit -m "Update certradar-cli to v${{ steps.release.outputs.version }}"
           git push

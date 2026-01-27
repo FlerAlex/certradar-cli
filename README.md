@@ -36,6 +36,13 @@ Built by the team behind [CertRadar.net](https://certradar.net) and [SSLGuard.ne
 cargo install certradar-cli
 ```
 
+### Homebrew (macOS/Linux)
+
+```bash
+brew tap fleralex/tap
+brew install certradar-cli
+```
+
 ### From Source
 
 ```bash
