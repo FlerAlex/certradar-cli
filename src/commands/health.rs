@@ -5,7 +5,7 @@ use std::time::Instant;
 use crate::models::{
     DnsResolution, HealthRecommendation, HealthScore, MxRecordInfo, SslHealthCheckResult,
 };
-use crate::output::format_health_results;
+use crate::output::{format_health_promo, format_health_results};
 use crate::services::DnsService;
 
 pub async fn run_health(domain: &str, json_output: bool) -> Result<()> {
@@ -145,6 +145,7 @@ pub async fn run_health(domain: &str, json_output: bool) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&result)?);
     } else {
         print!("{}", format_health_results(&result));
+        print!("{}", format_health_promo(&result));
     }
 
     Ok(())

@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::time::Duration;
 
 use crate::models::SearchResult;
-use crate::output::format_search_results;
+use crate::output::{format_search_promo, format_search_results};
 use crate::services::CrtshClient;
 
 pub async fn run_search(
@@ -43,6 +43,7 @@ pub async fn run_search(
         println!("{}", serde_json::to_string_pretty(&result)?);
     } else {
         print!("{}", format_search_results(&result, limit));
+        print!("{}", format_search_promo(&result));
     }
 
     Ok(())
