@@ -11,7 +11,7 @@ mod services;
 #[derive(Parser)]
 #[command(name = "certradar")]
 #[command(author = "CertRadar")]
-#[command(version = "0.1.0")]
+#[command(version = "0.1.1")]
 #[command(about = "Certificate transparency and SSL/TLS security analysis tool", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -91,8 +91,31 @@ enum Commands {
     },
 }
 
+/// Set SSL_CERT_FILE so vendored OpenSSL can find the system CA trust store.
+fn init_ssl_certs() {
+    if std::env::var_os("SSL_CERT_FILE").is_some() {
+        return;
+    }
+
+    // Try openssl-probe first (works well on Linux)
+    let probe = openssl_probe::probe();
+    if let Some(cert_file) = probe.cert_file {
+        std::env::set_var("SSL_CERT_FILE", cert_file);
+        return;
+    }
+
+    // Fallback for macOS and other systems where probe misses the cert bundle
+    for path in ["/etc/ssl/cert.pem", "/usr/local/etc/openssl@3/cert.pem"] {
+        if std::path::Path::new(path).exists() {
+            std::env::set_var("SSL_CERT_FILE", path);
+            return;
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    init_ssl_certs();
     let cli = Cli::parse();
 
     // Handle color output

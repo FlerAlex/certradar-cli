@@ -1,3 +1,4 @@
+use chrono::{NaiveDate, NaiveDateTime, Utc};
 use comfy_table::{presets::UTF8_FULL, Cell, CellAlignment, Color, Table};
 
 use crate::models::*;
@@ -314,12 +315,18 @@ pub fn format_search_results(result: &SearchResult, limit: Option<usize>) -> Str
             cert.issuer_name.clone()
         };
 
+        let not_after_cell = if is_date_expired(&cert.not_after) {
+            Cell::new(&cert.not_after).fg(Color::Red)
+        } else {
+            Cell::new(&cert.not_after).fg(Color::Green)
+        };
+
         table.add_row(vec![
             Cell::new(cert.crtsh_id.to_string()).set_alignment(CellAlignment::Right),
             Cell::new(cn),
             Cell::new(issuer),
             Cell::new(&cert.not_before),
-            Cell::new(&cert.not_after),
+            not_after_cell,
         ]);
     }
 
@@ -666,4 +673,15 @@ pub fn format_health_results(result: &SslHealthCheckResult) -> String {
     }
 
     output
+}
+
+/// Check if a date string (from crt.sh) represents an expired certificate.
+/// Handles formats like "2024-01-15T00:00:00" and "2024-01-15".
+fn is_date_expired(date_str: &str) -> bool {
+    let today = Utc::now().date_naive();
+    NaiveDateTime::parse_from_str(date_str, "%Y-%m-%dT%H:%M:%S")
+        .map(|dt| dt.date())
+        .or_else(|_| NaiveDate::parse_from_str(date_str, "%Y-%m-%d"))
+        .map(|d| d < today)
+        .unwrap_or(false)
 }
