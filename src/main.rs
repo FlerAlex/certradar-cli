@@ -11,7 +11,7 @@ mod services;
 #[derive(Parser)]
 #[command(name = "certradar")]
 #[command(author = "CertRadar")]
-#[command(version = "0.1.1")]
+#[command(version)]
 #[command(about = "Certificate transparency and SSL/TLS security analysis tool", long_about = None)]
 struct Cli {
     #[command(subcommand)]
