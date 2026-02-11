@@ -1,20 +1,21 @@
 name: Update Homebrew Formula
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
 
 jobs:
   update-formula:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Wait for release assets
-        run: sleep 60
 
       - name: Get release version
         id: release
         run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
+          TAG="${{ github.event.workflow_run.head_branch }}"
+          VERSION="${TAG#v}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Release version: ${VERSION}"
 
