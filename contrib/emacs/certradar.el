@@ -1,6 +1,6 @@
 ;;; certradar.el --- Check SSL/TLS certificates from Emacs -*- lexical-binding: t; -*-
 
-;; Author: Alex
+;; Author: Alex Fler
 ;; URL: https://github.com/FlerAlex/certradar-cli
 ;; Version: 0.1.0
 ;; Keywords: tools, networking, ssl, tls, certificates
