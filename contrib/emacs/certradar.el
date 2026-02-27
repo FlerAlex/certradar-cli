@@ -2,7 +2,7 @@
 
 ;; Author: Alex Fler
 ;; URL: https://github.com/FlerAlex/certradar-cli
-;; Version: 0.1.0
+;; Version: 0.2.0
 ;; Keywords: tools, networking, ssl, tls, certificates
 ;; Package-Requires: ((emacs "25.1"))
 
@@ -12,9 +12,11 @@
 ;; certificates without leaving your editor.
 ;;
 ;; Features:
-;;   - M-x check-ssl          → prompt for a domain and view its cert report
-;;   - M-x check-ssl-at-point → check whatever domain is under your cursor
-;;   - Expiry watcher          → background timer warns you about expiring certs
+;;   - M-x check-ssl            → prompt for a domain and view its cert report
+;;   - M-x check-ssl-async      → same thing, non-blocking
+;;   - M-x check-ssl-at-point   → check whatever domain is under your cursor
+;;   - M-x check-ssl-batch      → check multiple domains at once
+;;   - Expiry watcher            → background timer warns you about expiring certs
 ;;
 ;; Install certradar-cli first:
 ;;   cargo install certradar-cli
@@ -23,34 +25,76 @@
 ;;   (require 'certradar)
 ;;   (global-set-key (kbd "C-c s") #'check-ssl-at-point)
 ;;
-;; For org-babel usage, see the README or the r/emacs post.
+;; For org-babel usage, see the README or the blog post at theopsmechanic.com.
 
 ;;; Code:
 
 ;;;; -------------------------------------------------------------------
-;;;; Core: Interactive SSL check
+;;;; Utilities
+;;;; -------------------------------------------------------------------
+
+(defun check-ssl--clean-domain (domain)
+  "Strip protocol prefix and port suffix from DOMAIN."
+  (let ((cleaned (replace-regexp-in-string "https?://" "" domain)))
+    (replace-regexp-in-string ":[0-9]+$" "" cleaned)))
+
+;;;; -------------------------------------------------------------------
+;;;; Core: Interactive SSL check (synchronous)
 ;;;; -------------------------------------------------------------------
 
 (defun check-ssl (domain)
   "Check SSL/TLS certificate for DOMAIN using certradar-cli.
-Results are displayed in a dedicated read-only buffer."
+Results are displayed in a dedicated read-only buffer.
+Note: this is blocking.  Use `check-ssl-async' if you need
+to keep working while the check runs."
   (interactive "sDomain: ")
-  (let* ((clean-domain (replace-regexp-in-string "https?://" "" domain))
+  (let* ((clean-domain (check-ssl--clean-domain domain))
          (buf-name (format "*SSL: %s*" clean-domain))
          (buf (get-buffer-create buf-name)))
     (with-current-buffer buf
       (read-only-mode -1)
       (erase-buffer)
-      (insert (format "🔒 SSL Certificate Report: %s\n" clean-domain))
+      (insert (format "SSL Certificate Report: %s\n" clean-domain))
       (insert (make-string 50 ?─))
       (insert "\n\n")
       (let ((result (shell-command-to-string
-                     (format "certradar-cli ssl %s 2>&1"
+                     (format "certradar-cli ssl --no-color %s 2>&1"
                              (shell-quote-argument clean-domain)))))
         (insert result))
       (goto-char (point-min))
       (special-mode))
     (switch-to-buffer-other-window buf)))
+
+;;;; -------------------------------------------------------------------
+;;;; Core: Async SSL check (non-blocking)
+;;;; -------------------------------------------------------------------
+
+(defun check-ssl-async (domain)
+  "Check SSL/TLS certificate for DOMAIN asynchronously.
+Unlike `check-ssl', this won't freeze Emacs if DNS is slow
+or the domain is hanging."
+  (interactive "sDomain: ")
+  (let* ((clean-domain (check-ssl--clean-domain domain))
+         (buf-name (format "*SSL: %s*" clean-domain))
+         (buf (get-buffer-create buf-name)))
+    (with-current-buffer buf
+      (read-only-mode -1)
+      (erase-buffer)
+      (insert (format "SSL Certificate Report: %s\n" clean-domain))
+      (insert (make-string 50 ?─))
+      (insert "\n\nFetching...\n"))
+    (switch-to-buffer-other-window buf)
+    (make-process
+     :name (format "certradar-%s" clean-domain)
+     :buffer buf
+     :command (list "certradar-cli" "ssl" "--no-color" clean-domain)
+     :sentinel (lambda (proc _event)
+                 (when (eq (process-status proc) 'exit)
+                   (with-current-buffer (process-buffer proc)
+                     (goto-char (point-min))
+                     (when (search-forward "Fetching..." nil t)
+                       (replace-match ""))
+                     (special-mode)))))))
 
 ;;;; -------------------------------------------------------------------
 ;;;; Check domain at point
@@ -63,11 +107,22 @@ if it looks like a domain (contains a dot).  Prompts otherwise."
   (interactive)
   (let ((domain (thing-at-point 'url t)))
     (if domain
-        (check-ssl (replace-regexp-in-string "https?://" "" domain))
+        (check-ssl domain)
       (let ((word (thing-at-point 'symbol t)))
         (if (and word (string-match-p "\\." word))
             (check-ssl word)
           (call-interactively #'check-ssl))))))
+
+(defun check-ssl-at-point-async ()
+  "Like `check-ssl-at-point' but non-blocking."
+  (interactive)
+  (let ((domain (thing-at-point 'url t)))
+    (if domain
+        (check-ssl-async domain)
+      (let ((word (thing-at-point 'symbol t)))
+        (if (and word (string-match-p "\\." word))
+            (check-ssl-async word)
+          (call-interactively #'check-ssl-async))))))
 
 ;;;; -------------------------------------------------------------------
 ;;;; Batch check
@@ -83,14 +138,14 @@ Results are displayed in a single buffer."
     (with-current-buffer buf
       (read-only-mode -1)
       (erase-buffer)
-      (insert "🔒 SSL Batch Certificate Report\n")
+      (insert "SSL Batch Certificate Report\n")
       (insert (make-string 50 ?─))
       (insert "\n\n")
       (dolist (domain domains)
-        (let ((clean (replace-regexp-in-string "https?://" "" domain)))
+        (let ((clean (check-ssl--clean-domain domain)))
           (insert (format "━━━ %s ━━━\n" clean))
           (insert (shell-command-to-string
-                   (format "certradar-cli ssl %s 2>&1"
+                   (format "certradar-cli ssl --no-color %s 2>&1"
                            (shell-quote-argument clean))))
           (insert "\n\n")))
       (goto-char (point-min))
@@ -117,12 +172,12 @@ Example: (setq ssl-watch-domains \\='(\"example.com\" \"api.example.com\"))")
   (when ssl-watch-domains
     (dolist (domain ssl-watch-domains)
       (let ((output (shell-command-to-string
-                     (format "certradar-cli ssl %s --json 2>/dev/null"
+                     (format "certradar-cli ssl --no-color %s --json 2>/dev/null"
                              (shell-quote-argument domain)))))
         (when (string-match "\"days_until_expiry\":\\s*\\([0-9]+\\)" output)
           (let ((days (string-to-number (match-string 1 output))))
             (when (<= days ssl-expiry-warning-days)
-              (message "⚠️  SSL WARNING: %s expires in %d days!" domain days)
+              (message "SSL WARNING: %s expires in %d days!" domain days)
               (run-with-timer 0.5 nil
                 (lambda (d n)
                   (display-warning 'ssl
@@ -151,12 +206,15 @@ Checks immediately, then every INTERVAL seconds (default 21600 = 6 hours)."
     (message "SSL watcher stopped.")))
 
 ;;;; -------------------------------------------------------------------
-;;;; Optional keybinding
+;;;; Optional keybindings
 ;;;; -------------------------------------------------------------------
 
 ;; Uncomment to enable globally:
 ;; (global-set-key (kbd "C-c s") #'check-ssl-at-point)
 ;; (global-set-key (kbd "C-c S") #'check-ssl-batch)
+;;
+;; For async versions:
+;; (global-set-key (kbd "C-c s") #'check-ssl-at-point-async)
 
 (provide 'certradar)
 
